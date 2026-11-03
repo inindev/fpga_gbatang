@@ -327,6 +327,18 @@ wire        backup_written;
 
 wire [16:0] dma_eepromcount;
 
+// Pause the game while the menu is shown. From the CPU's next ready cycle the memory
+// controller sees the same stall as for a DMA: no CPU accesses and cpu_en=0, so DMA can't
+// start either. GPU, timers and sound keep running; the picture holds and the sound is
+// muted (video below). Not during loading, when the loader needs the memory controller.
+wire overlay;
+reg paused = 0;
+always @(posedge clk16)
+    if (~overlay | ~gbaon)
+        paused <= 0;
+    else if (cpu_en)
+        paused <= 1;
+
 gba_memory mem (
     .clk(clk16), .resetn(resetn), .ce(1'b1),
     // CPU memory interface
@@ -335,7 +347,7 @@ gba_memory mem (
     .ram_cen(ram_cen), .ram_wen(ram_wen), .ram_addr(ram_addr), .ram_rdata(ram_rdata),
     .ram_wdata(ram_wdata), .ram_be(ram_be), 
 
-    .dma_on(dma_on), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_ena(dma_bus_ena), 
+    .dma_on(dma_on | paused), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_ena(dma_bus_ena),
     .dma_wr(~dma_rnw), .dma_be(calc_byte_ena(dma_bus_acc, dma_addr[1:0])), 
     .dma_rdata(dma_rdata), .dma_done(dma_bus_done), .dma_eepromcount(dma_eepromcount),
 
@@ -498,18 +510,20 @@ gba_joypad joypad (
 
 `ifndef VERILATOR
 // wire overlay = ~s1;      // for debug
-wire overlay;
 wire [7:0] overlay_x, overlay_y;
 wire [14:0] overlay_color;
 reg [5:0] ddr_prefetch_delay;
 assign joy_btns_gba = overlay ? 0 : joy_btns | joy_usb1 | joy_usb2 | hid1 | hid2;
+// the PSG channels keep playing while the game is paused
+wire [15:0] sound_left  = paused ? 16'd0 : sound_out_left;
+wire [15:0] sound_right = paused ? 16'd0 : sound_out_right;
 
 `ifdef DDR3_FRAMEBUFFER
 gba2hdmi_ddr3 video (       // DDR3-based framebuffer
 	.clk27(clk27), .resetn(resetn), .clk_pixel(hclk), 
     .clk(clk50), .pixel_data(pixel_out_data), .pixel_x(pixel_out_x), .pixel_y(pixel_out_y),
     .pixel_we(pixel_out_we),
-    .sound_left(sound_out_left), .sound_right(sound_out_right),
+    .sound_left(sound_left), .sound_right(sound_right),
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
     .freeze(core_config[6]),
 
@@ -529,7 +543,7 @@ gba2hdmi video (            // BRAM-based framebuffer
 	.clk(clk50), .clk27(clk27), .resetn(resetn), .clk_pixel(hclk),
     .pixel_data(pixel_out_data), .pixel_x(pixel_out_x), .pixel_y(pixel_out_y),
     .pixel_we(pixel_out_we),
-    .sound_left(sound_out_left), .sound_right(sound_out_right),
+    .sound_left(sound_left), .sound_right(sound_right),
 `ifdef TEST_LOADER
     .overlay(0),
 `else
