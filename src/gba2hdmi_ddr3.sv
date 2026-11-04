@@ -129,7 +129,7 @@ ddr3_framebuffer #(
     .clk(clk),
     .fb_width(overlay ? 256 : 240),
     .fb_height(overlay ? 224 : 160),
-    .disp_width(overlay ? 960 : 1080),
+    .disp_width(overlay ? 768 : 1080),  // menu 3x across, as on the other cores (still 720 lines high)
     .fb_vsync(vsync),
     .fb_we(overlay ? overlay_we : pixel_we),
     .fb_data(overlay ? overlay_data : pixel_data),

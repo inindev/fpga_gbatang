@@ -398,7 +398,7 @@ always @(posedge clk_x1) begin
             end
             rgb <= torgb(pixels[cx == 0 ? 0 : ox[3:0]]);
         end else
-            rgb <= 24'h202020;
+            rgb <= 24'h000000;          // black around the picture
 
         // if (cy >= 300 && cy < 330)    // a blue bar in the middle for debug
         //     rgb <= 24'h4040ff;
