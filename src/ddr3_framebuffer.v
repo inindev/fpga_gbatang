@@ -228,12 +228,18 @@ begin
     end
 end
 
-reg [15:0] audio_sample_word [1:0], audio_sample_word0 [1:0];
-always @(posedge clk_x1) begin       // crossing clock domain
-    audio_sample_word0[0] <= sound_left;
-    audio_sample_word[0] <= audio_sample_word0[0];
-    audio_sample_word0[1] <= sound_right;
-    audio_sample_word[1] <= audio_sample_word0[1];
+// Sound into clk_x1, every bit of each sample from one update (audio_cdc.v). The sound
+// is registered on clk16; clk is clk50, made from clk16 by the same PLL, so clk16 -> clk50
+// is a timed path (gbatang_ddr.sdc) and clk can hold the sample. Signed, silence = 0.
+wire [15:0] audio_pix_l, audio_pix_r;
+audio_cdc #(.W(16), .INIT(16'd0)) audio_cdc_inst (
+    .clk_src(clk), .in_l(sound_left), .in_r(sound_right),
+    .clk_dst(clk_x1), .out_l(audio_pix_l), .out_r(audio_pix_r)
+);
+reg [15:0] audio_sample_word [1:0];
+always @(*) begin
+    audio_sample_word[0] = audio_pix_l;
+    audio_sample_word[1] = audio_pix_r;
 end
 
 /////////////////////////////////////////////////////////////////////

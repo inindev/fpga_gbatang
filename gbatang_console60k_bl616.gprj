@@ -33,6 +33,7 @@
         <File path="src/gpu/linebuffer.v" type="file.verilog" enable="1"/>
         <File path="src/gpu/vram_hi.v" type="file.verilog" enable="1"/>
         <File path="src/gpu/vram_lo.v" type="file.verilog" enable="1"/>
+        <File path="src/audio_cdc.v" type="file.verilog" enable="1"/>
         <File path="src/hdmi/audio_clock_regeneration_packet.sv" type="file.verilog" enable="1"/>
         <File path="src/hdmi/audio_info_frame.sv" type="file.verilog" enable="1"/>
         <File path="src/hdmi/audio_sample_packet.sv" type="file.verilog" enable="1"/>
