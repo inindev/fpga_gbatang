@@ -46,3 +46,7 @@ create_clock -name clk1x -period 13.47 -waveform {0 6.734} [get_nets {video/fb/c
 set_clock_groups -asynchronous -group [get_clocks {clk50}] -group [get_clocks {clk4x}]
 set_clock_groups -asynchronous -group [get_clocks {clk4x}] -group [get_clocks {clk1x}]
 set_clock_groups -asynchronous -group [get_clocks {clk50}] -group [get_clocks {clk1x}]
+
+// Clock crossings: a register named *_meta is the first stage of a synchronizer (iosys's
+// UART input, usb_hid_sync's USB buttons). The path into it crosses clocks on purpose.
+set_false_path -to [get_regs {*_meta*}]

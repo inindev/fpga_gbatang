@@ -469,22 +469,26 @@ controller_ds2 ds2 (
 
 `ifdef USB1
 pll_12 pll12(.clkin(sysclk), .clkout0(clk12), .lock(pll_lock_12));
+wire [11:0] joy_usb1_12;
 usb_hid_host usb_hid_host (
     .usbclk(clk12), .usbrst_n(pll_lock_12),
     .usb_dm(usb1_dn), .usb_dp(usb1_dp),
     .typ(usb_type), .conerr(usb_conerr),
-    .game_snes(joy_usb1)
+    .game_snes(joy_usb1_12)
 );
+usb_hid_sync usb_hid_host_sync (.clk(clk16), .d(joy_usb1_12), .q(joy_usb1));
 `else
 assign joy_usb1 = 12'b0;
 `endif
 
 `ifdef USB2
+wire [11:0] joy_usb2_12;
 usb_hid_host usb_hid_host2 (
     .usbclk(clk12), .usbrst_n(pll_lock_12),
     .usb_dm(usb2_dn), .usb_dp(usb2_dp),
-    .game_snes(joy_usb2)
+    .game_snes(joy_usb2_12)
 );
+usb_hid_sync usb_hid_host2_sync (.clk(clk16), .d(joy_usb2_12), .q(joy_usb2));
 `else
 assign joy_usb2 = 12'b0;
 `endif
