@@ -331,10 +331,13 @@ wire [16:0] dma_eepromcount;
 // controller sees the same stall as for a DMA: no CPU accesses and cpu_en=0, so DMA can't
 // start either. GPU, timers and sound keep running; the picture holds and the sound is
 // muted (video below). Not during loading, when the loader needs the memory controller.
+// Not for the strip (volume bar), shown over the running game.
 wire overlay;
+wire osd_strip;                     // with overlay: volume bar strip, the game keeps running
+wire menu = overlay & ~osd_strip;   // menu shown, game paused
 reg paused = 0;
 always @(posedge clk16)
-    if (~overlay | ~gbaon)
+    if (~menu | ~gbaon)
         paused <= 0;
     else if (cpu_en)
         paused <= 1;
@@ -512,12 +515,13 @@ gba_joypad joypad (
 // Video output
 ////////////////////////////
 
+wire [3:0] volume;              // master volume, iosys -> HDMI encoder
 `ifndef VERILATOR
 // wire overlay = ~s1;      // for debug
 wire [7:0] overlay_x, overlay_y;
 wire [14:0] overlay_color;
 reg [5:0] ddr_prefetch_delay;
-assign joy_btns_gba = overlay ? 0 : joy_btns | joy_usb1 | joy_usb2 | hid1 | hid2;
+assign joy_btns_gba = menu ? 0 : joy_btns | joy_usb1 | joy_usb2 | hid1 | hid2;
 // the PSG channels keep playing while the game is paused
 wire [15:0] sound_left  = paused ? 16'd0 : sound_out_left;
 wire [15:0] sound_right = paused ? 16'd0 : sound_out_right;
@@ -528,7 +532,10 @@ gba2hdmi_ddr3 video (       // DDR3-based framebuffer
     .clk(clk50), .pixel_data(pixel_out_data), .pixel_x(pixel_out_x), .pixel_y(pixel_out_y),
     .pixel_we(pixel_out_we),
     .sound_left(sound_left), .sound_right(sound_right),
-    .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
+    .volume(volume),
+    // the DDR3 frame buffer shows the menu instead of the game, so no strip here: the game
+    // just keeps running
+    .overlay(menu), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
     .freeze(core_config[6]),
 
     .ddr_addr(ddr_addr), .ddr_bank(ddr_bank), .ddr_cs(ddr_cs), .ddr_ras(ddr_ras), .ddr_cas(ddr_cas),
@@ -548,10 +555,11 @@ gba2hdmi video (            // BRAM-based framebuffer
     .pixel_data(pixel_out_data), .pixel_x(pixel_out_x), .pixel_y(pixel_out_y),
     .pixel_we(pixel_out_we),
     .sound_left(sound_left), .sound_right(sound_right),
+    .volume(volume),
 `ifdef TEST_LOADER
-    .overlay(0),
+    .overlay(0), .osd_strip(0),
 `else
-    .overlay(overlay), 
+    .overlay(overlay), .osd_strip(osd_strip),
 `endif
     .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
 	.tmds_clk_n(tmds_clk_n), .tmds_clk_p(tmds_clk_p), .tmds_d_n(tmds_d_n),
@@ -572,7 +580,8 @@ iosys_bl616 #(.CORE_ID(3), .COLOR_LOGO(15'b01111_01100_10101), .FREQ(16_650_000)
 `endif
     .resetn(resetn),
 
-    .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
+    .overlay(overlay), .osd_strip(osd_strip),
+    .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
     .core_config(core_config),
     .joy1(joy_btns | joy_usb1 | joy_usb2), .joy2(12'b0),
     .hid1(hid1), .hid2(hid2),
@@ -583,6 +592,7 @@ iosys_bl616 #(.CORE_ID(3), .COLOR_LOGO(15'b01111_01100_10101), .FREQ(16_650_000)
     .rom_loading(loading), .rom_do(loader_do), .rom_do_valid(loader_do_valid), 
 `endif
 
+    .volume(volume),
     .uart_tx(UART_TXD), .uart_rx(UART_RXD)
 );
 

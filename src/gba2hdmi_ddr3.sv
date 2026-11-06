@@ -19,6 +19,7 @@ module gba2hdmi_ddr3 (
     // audio input
     input [15:0] sound_left,
     input [15:0] sound_right,
+    input [3:0] volume,       // master volume 0-10 from iosys (hdmi.sv brings it into the pixel clock)
 
     // overlay interface
     input overlay,
@@ -136,6 +137,7 @@ ddr3_framebuffer #(
     
     .sound_left(sound_left),
     .sound_right(sound_right),
+    .volume(volume),
 
     // DDR3 interface
     .ddr_addr(ddr_addr),

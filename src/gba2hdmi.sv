@@ -16,9 +16,11 @@ module gba2hdmi (
     // audio input
     input [15:0] sound_left,
     input [15:0] sound_right,
+    input [3:0] volume,       // master volume 0-10 from iosys (hdmi.sv brings it into the pixel clock)
 
     // overlay interface
     input overlay,
+    input osd_strip,            // with overlay: only the strip (volume bar), over the running game
     output [10:0] overlay_x,
     output [9:0] overlay_y,
     input [15:0] overlay_color,
@@ -204,6 +206,12 @@ localparam LAT = 6;
 localparam [10:0] LINE_EVT = 11'd1290;  // next line's overlay_y is set here, in horizontal blanking
 localparam [10:0] MENU_X0 = 11'd256;    // window left edge
 localparam [9:0]  MENU_Y0 = 10'd24;     // window top edge
+// Strip (osd_strip, the volume bar): text columns 8-23 of rows 23-24, 128x16 pixels (the
+// firmware's OVERLAY_STRIP_*), on a band 2 pixels (6 output pixels) wider on every side
+localparam [10:0] STRIP_X0 = MENU_X0 + 11'd192;     // column 8
+localparam [10:0] STRIP_X1 = MENU_X0 + 11'd576;     // after column 23
+localparam [9:0]  STRIP_Y0 = MENU_Y0 + 10'd552;     // row 23
+localparam [9:0]  STRIP_Y1 = MENU_Y0 + 10'd600;     // after row 24
 
 wire [10:0] hpos = cx + LAT;
 wire [9:0] next_line = cy == 10'd749 ? 10'd0 : cy + 10'd1;
@@ -239,22 +247,41 @@ reg [4:0] menu_win_d;
 always @(posedge clk_pixel)
     menu_win_d <= {menu_win_d[3:0], menu_win0};
 wire menu_win5 = menu_win_d[4];
+wire strip_win0 = hpos >= STRIP_X0 && hpos < STRIP_X1 && cy >= STRIP_Y0 && cy < STRIP_Y1;
+wire band_win0 = hpos >= STRIP_X0 - 11'd6 && hpos < STRIP_X1 + 11'd6 &&
+                 cy >= STRIP_Y0 - 10'd6 && cy < STRIP_Y1 + 10'd6;
+reg [4:0] strip_win_d, band_win_d;
+always @(posedge clk_pixel) begin
+    strip_win_d <= {strip_win_d[3:0], strip_win0};
+    band_win_d <= {band_win_d[3:0], band_win0};
+end
+wire strip_win5 = strip_win_d[4];
+wire band_win5 = band_win_d[4];
+
+// osd_strip from the core clock domain: two flip-flops, the first *_meta
+reg strip_meta, strip_r;
+always @(posedge clk_pixel)
+    {strip_r, strip_meta} <= {strip_meta, osd_strip};
 
 // BGR5 to RGB888, low bits repeated so that 31 becomes 255
 wire [23:0] menu_rgb = {overlay_color[4:0],   overlay_color[4:2],
                         overlay_color[9:5],   overlay_color[9:7],
                         overlay_color[14:10], overlay_color[14:12]};
 
-// calc rgb value to hdmi: the menu over the game dimmed to 1/4, black around the picture
+// calc rgb value to hdmi: the menu over the game dimmed to 1/4; the strip (volume bar) in
+// white on a band of the game dimmed to 1/8 with a green tint. Black around the picture.
 always @(posedge clk_pixel) begin
     reg [23:0] game;
     game = active ? {mem_portB_rdata[COLOR_BITS*2 +: COLOR_BITS], {(8-COLOR_BITS){1'b0}},
                      mem_portB_rdata[COLOR_BITS   +: COLOR_BITS], {(8-COLOR_BITS){1'b0}},
                      mem_portB_rdata[0            +: COLOR_BITS], {(8-COLOR_BITS){1'b0}}}    // RGB6 to RGB8
                   : 24'h000000;
-    if (overlay)
+    if (overlay && ~strip_r)
         rgb <= menu_win5 && overlay_color[14:0] != 15'd0 ? menu_rgb
              : {2'b0, game[23:18], 2'b0, game[15:10], 2'b0, game[7:2]};
+    else if (overlay && band_win5)
+        rgb <= strip_win5 && overlay_color[14:0] != 15'd0 ? 24'hFFFFFF
+             : {3'b000, game[23:19], 3'b010, game[15:11], 3'b000, game[7:3]};
     else
         rgb <= game;
 end
@@ -279,6 +306,7 @@ hdmi( .clk_pixel_x5(clk_5x_pixel),
         .rgb(rgb), 
         .reset( 0 ),
         .audio_sample_word(audio_sample_word),
+        .volume(volume),
         .tmds(tmds), 
         .tmds_clock(tmdsClk), 
         .cx(cx), 

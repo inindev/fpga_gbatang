@@ -49,6 +49,7 @@ module ddr3_framebuffer #(
 
     input [15:0]        sound_left,
     input [15:0]        sound_right,
+    input [3:0] volume,       // master volume 0-10 from iosys (hdmi.sv brings it into the pixel clock)
 
     // DDR3 interface
     output [14:0]       ddr_addr,   
@@ -273,6 +274,7 @@ hdmi(   .clk_pixel_x5(hclk5),
         .rgb(rgb), 
         .reset( ddr_rst ),
         .audio_sample_word(audio_sample_word),
+        .volume(volume),
         .tmds(tmds), 
         .tmds_clock(), 
         .cx(cx), 
